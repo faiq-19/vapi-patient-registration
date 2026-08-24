@@ -1,0 +1,468 @@
+{
+  "name": "Patient API - Create Patient",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "patients",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "27ab4dcc-b8d2-4193-8daa-dd36ad5980d6",
+      "name": "POST /patients",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1296,
+        96
+      ],
+      "webhookId": "create-patient"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body?.message?.toolCalls?.[0]?.function?.arguments;\n\nif (!body || typeof body !== 'object') {\n  return [\n    {\n      json: {\n        valid: false,\n        statusCode: 400,\n        error: {\n          code: 'INVALID_TOOL_PAYLOAD',\n          message: 'Could not find patient data in Vapi tool call'\n        }\n      }\n    }\n  ];\n}\n\n// Required fields\nconst requiredFields = [\n  'first_name',\n  'last_name',\n  'date_of_birth',\n  'sex',\n  'phone_number',\n  'address_line_1',\n  'city',\n  'state',\n  'zip_code'\n];\n\n// Check required fields\nconst missingFields = requiredFields.filter(field => {\n  return (\n    body[field] === undefined ||\n    body[field] === null ||\n    String(body[field]).trim() === ''\n  );\n});\n\nif (missingFields.length > 0) {\n  return [\n    {\n      json: {\n        valid: false,\n        statusCode: 400,\n        error: {\n          code: 'VALIDATION_ERROR',\n          message: `Missing required fields: ${missingFields.join(', ')}`\n        }\n      }\n    }\n  ];\n}\n\n// Clean strings\nconst clean = value => {\n  if (value === undefined || value === null || value === '') {\n    return null;\n  }\n\n  return String(value).trim();\n};\n\nconst patient = {\n  first_name: clean(body.first_name),\n  last_name: clean(body.last_name),\n  date_of_birth: clean(body.date_of_birth),\n  sex: clean(body.sex),\n  phone_number: clean(body.phone_number),\n  email: clean(body.email),\n  address_line_1: clean(body.address_line_1),\n  address_line_2: clean(body.address_line_2),\n  city: clean(body.city),\n  state: clean(body.state)?.toUpperCase(),\n  zip_code: clean(body.zip_code),\n  insurance_provider: clean(body.insurance_provider),\n  insurance_member_id: clean(body.insurance_member_id),\n  preferred_language: clean(body.preferred_language) || 'English',\n  emergency_contact_name: clean(body.emergency_contact_name),\n  emergency_contact_phone: clean(body.emergency_contact_phone)\n};\n\n// -------------------------\n// Name validation\n// -------------------------\n\nconst nameRegex = /^[A-Za-zÀ-ÿ' -]+$/;\n\nfor (const field of ['first_name', 'last_name']) {\n  if (\n    !nameRegex.test(patient[field]) ||\n    patient[field].length < 1 ||\n    patient[field].length > 50\n  ) {\n    return [\n      {\n        json: {\n          valid: false,\n          statusCode: 400,\n          error: {\n            code: 'VALIDATION_ERROR',\n            message: `Invalid ${field}`\n          }\n        }\n      }\n    ];\n  }\n}\n\n// -------------------------\n// Date of birth\n// -------------------------\n\nif (!/^\\d{4}-\\d{2}-\\d{2}$/.test(patient.date_of_birth)) {\n  return [\n    {\n      json: {\n        valid: false,\n        statusCode: 400,\n        error: {\n          code: 'VALIDATION_ERROR',\n          message: 'date_of_birth must be YYYY-MM-DD'\n        }\n      }\n    }\n  ];\n}\n\nconst dob = new Date(`${patient.date_of_birth}T00:00:00Z`);\n\nif (Number.isNaN(dob.getTime())) {\n  return [\n    {\n      json: {\n        valid: false,\n        statusCode: 400,\n        error: {\n          code: 'VALIDATION_ERROR',\n          message: 'Invalid date_of_birth'\n        }\n      }\n    }\n  ];\n}\n\nconst today = new Date();\ntoday.setUTCHours(0, 0, 0, 0);\n\nif (dob > today) {\n  return [\n    {\n      json: {\n        valid: false,\n        statusCode: 400,\n        error: {\n          code: 'VALIDATION_ERROR',\n          message: 'date_of_birth cannot be in the future'\n        }\n      }\n    }\n  ];\n}\n\n// -------------------------\n// Sex\n// -------------------------\n\nconst validSexes = [\n  'Male',\n  'Female',\n  'Other',\n  'Decline to Answer'\n];\n\nif (!validSexes.includes(patient.sex)) {\n  return [\n    {\n      json: {\n        valid: false,\n        statusCode: 400,\n        error: {\n          code: 'VALIDATION_ERROR',\n          message: 'Invalid sex'\n        }\n      }\n    }\n  ];\n}\n\n// -------------------------\n// Phone\n// -------------------------\n\npatient.phone_number = patient.phone_number.replace(/\\D/g, '');\n\nif (!/^\\d{10}$/.test(patient.phone_number)) {\n  return [\n    {\n      json: {\n        valid: false,\n        statusCode: 400,\n        error: {\n          code: 'VALIDATION_ERROR',\n          message: 'phone_number must contain exactly 10 digits'\n        }\n      }\n    }\n  ];\n}\n\n// -------------------------\n// Email\n// -------------------------\n\nif (\n  patient.email &&\n  !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(patient.email)\n) {\n  return [\n    {\n      json: {\n        valid: false,\n        statusCode: 400,\n        error: {\n          code: 'VALIDATION_ERROR',\n          message: 'Invalid email'\n        }\n      }\n    }\n  ];\n}\n\n// -------------------------\n// State\n// -------------------------\n\nif (!/^[A-Z]{2}$/.test(patient.state)) {\n  return [\n    {\n      json: {\n        valid: false,\n        statusCode: 400,\n        error: {\n          code: 'VALIDATION_ERROR',\n          message: 'state must be a 2-letter US state abbreviation'\n        }\n      }\n    }\n  ];\n}\n\n// -------------------------\n// ZIP\n// -------------------------\n\nif (!/^\\d{5}(-\\d{4})?$/.test(patient.zip_code)) {\n  return [\n    {\n      json: {\n        valid: false,\n        statusCode: 400,\n        error: {\n          code: 'VALIDATION_ERROR',\n          message: 'Invalid ZIP code'\n        }\n      }\n    }\n  ];\n}\n\n// -------------------------\n// Emergency phone\n// -------------------------\n\nif (patient.emergency_contact_phone) {\n  patient.emergency_contact_phone =\n    patient.emergency_contact_phone.replace(/\\D/g, '');\n\n  if (!/^\\d{10}$/.test(patient.emergency_contact_phone)) {\n    return [\n      {\n        json: {\n          valid: false,\n          statusCode: 400,\n          error: {\n            code: 'VALIDATION_ERROR',\n            message: 'Invalid emergency_contact_phone'\n          }\n        }\n      }\n    ];\n  }\n}\n\n// -------------------------\n// SUCCESS\n// -------------------------\n\nreturn [\n  {\n    json: {\n      valid: true,\n      statusCode: 200,\n      patient\n    }\n  }\n];"
+      },
+      "id": "350f899a-50da-4227-9fd2-12918f36985d",
+      "name": "Validate Patient",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1072,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "valid-condition",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6d0d02ec-fb44-4b18-ada8-ee28c4438153",
+      "name": "Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -848,
+        96
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "patients",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "phone_number",
+              "condition": "eq",
+              "keyValue": "={{ $json.patient.phone_number }}"
+            },
+            {
+              "keyName": "deleted_at",
+              "condition": "is",
+              "keyValue": "null"
+            }
+          ]
+        }
+      },
+      "id": "c0e89978-5c91-48ed-8680-5ecb27ad2b0d",
+      "name": "Check Existing Patient",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -608,
+        16
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "LJEMbAeozjGpd5uL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const patient = $('Validate Patient').first().json.patient;\n\n// Normalize any phone value to its last 10 digits for a reliable comparison.\n// The DB may store the number in a different format (spaces, dashes,\n// leading country code, parentheses) than the validated 10-digit value.\nconst normalizePhone = (value) => {\n  if (value === undefined || value === null) return '';\n  const digits = String(value).replace(/\\D/g, '');\n  return digits.slice(-10);\n};\n\nconst targetPhone = normalizePhone(patient.phone_number);\n\nconst existing = $input.all();\n\n// A row is only a duplicate when it is a real patient row (has patient_id)\n// AND its normalized phone number actually matches the incoming one.\n// This guards against empty-json items (from alwaysOutputData) and against\n// rows whose stored phone differs from what was validated.\nconst existingPatient = existing.find(\n  (item) =>\n    item.json &&\n    item.json.patient_id &&\n    targetPhone !== '' &&\n    normalizePhone(item.json.phone_number) === targetPhone\n);\n\nif (existingPatient) {\n  return [{\n    json: {\n      duplicate: true,\n      existing_patient: existingPatient.json\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    duplicate: false,\n    patient\n  }\n}];"
+      },
+      "id": "10bb8e87-9c6b-4f8e-a7c6-0603a8afaff3",
+      "name": "Duplicate Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "duplicate-condition",
+              "leftValue": "={{ $json.duplicate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f89d9e27-fc53-4585-b597-cc2869e19d82",
+      "name": "Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -176,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    data: null,\n    error: {\n      code: 'DUPLICATE_PATIENT',\n      message: 'A patient with this phone number already exists.',\n      patient_id: $json.existing_patient.patient_id\n    }\n  }\n}];"
+      },
+      "id": "3c6e6e2d-d76a-4d8d-8b6e-2d65db92c402",
+      "name": "Duplicate Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 409
+        }
+      },
+      "id": "24d795e8-9a0b-4894-9a4e-5936481cd5d1",
+      "name": "409 Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        272,
+        -96
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "patients",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "first_name",
+              "fieldValue": "={{ $json.patient.first_name }}"
+            },
+            {
+              "fieldId": "last_name",
+              "fieldValue": "={{ $json.patient.last_name }}"
+            },
+            {
+              "fieldId": "date_of_birth",
+              "fieldValue": "={{ $json.patient.date_of_birth }}"
+            },
+            {
+              "fieldId": "sex",
+              "fieldValue": "={{ $json.patient.sex }}"
+            },
+            {
+              "fieldId": "phone_number",
+              "fieldValue": "={{ $json.patient.phone_number }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $json.patient.email }}"
+            },
+            {
+              "fieldId": "address_line_1",
+              "fieldValue": "={{ $json.patient.address_line_1 }}"
+            },
+            {
+              "fieldId": "address_line_2",
+              "fieldValue": "={{ $json.patient.address_line_2 }}"
+            },
+            {
+              "fieldId": "city",
+              "fieldValue": "={{ $json.patient.city }}"
+            },
+            {
+              "fieldId": "state",
+              "fieldValue": "={{ $json.patient.state }}"
+            },
+            {
+              "fieldId": "zip_code",
+              "fieldValue": "={{ $json.patient.zip_code }}"
+            },
+            {
+              "fieldId": "insurance_provider",
+              "fieldValue": "={{ $json.patient.insurance_provider }}"
+            },
+            {
+              "fieldId": "insurance_member_id",
+              "fieldValue": "={{ $json.patient.insurance_member_id }}"
+            },
+            {
+              "fieldId": "preferred_language",
+              "fieldValue": "={{ $json.patient.preferred_language }}"
+            },
+            {
+              "fieldId": "emergency_contact_name",
+              "fieldValue": "={{ $json.patient.emergency_contact_name }}"
+            },
+            {
+              "fieldId": "emergency_contact_phone",
+              "fieldValue": "={{ $json.patient.emergency_contact_phone }}"
+            }
+          ]
+        }
+      },
+      "id": "0f6c5c4c-da64-4189-889f-41bc68b5db78",
+      "name": "Create Patient in Supabase",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        48,
+        112
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "LJEMbAeozjGpd5uL",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const patient = $input.first().json;\n\nconsole.log('PATIENT_CREATED', JSON.stringify(patient));\n\nreturn [{\n  json: {\n    data: patient,\n    error: null\n  }\n}];"
+      },
+      "id": "81171652-19cb-49c7-9812-dc86c43233e1",
+      "name": "Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 201
+        }
+      },
+      "id": "890a85ef-0524-4274-b4ff-34eaa88a6b9a",
+      "name": "201 Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        496,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    data: null,\n    error: $json.error\n  }\n}];"
+      },
+      "id": "fde6b6c9-80f2-4557-91c3-cee713c02018",
+      "name": "Validation Error Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -608,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "d3d54672-15e9-46c6-9077-8f1e68cdd4be",
+      "name": "400 Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -400,
+        272
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "POST /patients": {
+      "main": [
+        [
+          {
+            "node": "Validate Patient",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Patient": {
+      "main": [
+        [
+          {
+            "node": "Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid?": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Patient",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Validation Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Patient": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Check": {
+      "main": [
+        [
+          {
+            "node": "Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate?": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Patient in Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Response": {
+      "main": [
+        [
+          {
+            "node": "409 Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Patient in Supabase": {
+      "main": [
+        [
+          {
+            "node": "Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Success Response": {
+      "main": [
+        [
+          {
+            "node": "201 Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation Error Response": {
+      "main": [
+        [
+          {
+            "node": "400 Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d2bb82e5-3723-498b-af2a-b1401f00dffb",
+  "meta": {
+    "instanceId": "adba917daaa91d5aad3faed696c455729f9922174334247306758e6ea31ab805"
+  },
+  "nodeGroups": [],
+  "id": "dmS3hBpsYdNyjJrG",
+  "tags": []
+}
