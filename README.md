@@ -2,6 +2,14 @@
 
 A small end-to-end implementation for the CareCloud AI Engineer take-home assessment.
 
+## Live Demo
+
+- App / Dashboard: https://vapi-patient-registration.vercel.app/
+- Voice Agent: +1 (586) 221-9236
+- API Base URL: https://vapi-patient-registration.vercel.app/api
+
+The reviewer can open the app link, call the voice agent, refresh the dashboard, and verify that the patient was persisted.
+
 ## Stack
 
 - Vapi — phone number, STT/TTS, voice conversation
