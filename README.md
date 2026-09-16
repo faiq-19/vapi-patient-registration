@@ -6,7 +6,7 @@ A small end-to-end implementation for the CareCloud AI Engineer take-home assess
 
 - App / Dashboard: https://vapi-patient-registration.vercel.app/
 - Voice Agent: +1 (586) 221-9236
-- API Base URL: https://vapi-patient-registration.vercel.app/api
+- API Base URL: https://vapi-patient-registration.vercel.app
 
 The reviewer can open the app link, call the voice agent, refresh the dashboard, and verify that the patient was persisted.
 
@@ -21,15 +21,15 @@ The reviewer can open the app link, call the voice agent, refresh the dashboard,
 
 `Caller → Vapi → Next.js REST API → Supabase`
 
-The same Next.js deployment also serves the dashboard, so the reviewer only needs one web link plus the phone call button shown on that page.
+The same Next.js deployment serves the dashboard, so the reviewer only needs one web link plus the phone call button shown on that page.
 
 ## API
 
-- `GET /api/patients` — list/search (`last_name`, `date_of_birth`, `phone_number`)
-- `POST /api/patients` — create
-- `GET /api/patients/:id` — retrieve
-- `PUT /api/patients/:id` — partial update
-- `DELETE /api/patients/:id` — soft delete
+- `GET /patients` — list/search (`last_name`, `date_of_birth`, `phone_number`)
+- `POST /patients` — create
+- `GET /patients/:id` — retrieve
+- `PUT /patients/:id` — partial update
+- `DELETE /patients/:id` — soft delete
 
 Responses use `{ "data": ..., "error": null }` on success. Inputs are validated server-side with Zod and the final registration payload is logged by the backend.
 
@@ -53,7 +53,11 @@ NEXT_PUBLIC_VAPI_PHONE_NUMBER=+15862219236
 
 ## Vapi
 
-See `vapi/system-prompt.md` and `vapi/SETUP.md`. Vapi calls the REST API directly with API Request tools for lookup, create, and update.
+The live system keeps the original working Vapi assistant and `create_patient` function tool. The only backend change is the tool server URL:
+
+`https://vapi-patient-registration.vercel.app/patients`
+
+See `vapi/SETUP.md` for the minimal configuration change.
 
 ## Notes
 
