@@ -11,43 +11,35 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: Test live app and patient API
+      - name: Diagnose and test live app
         shell: bash
         run: |
           set -euo pipefail
           BASE='https://vapi-patient-registration.vercel.app'
           PHONE="415$(date +%s | tail -c 8)"
 
-          echo '1. Homepage'
-          test "$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/")" = '200'
+          HOME_STATUS=$(curl -sS -o /tmp/home.html -w '%{http_code}' "$BASE/")
+          API_STATUS=$(curl -sS -o /tmp/api.json -w '%{http_code}' "$BASE/api/patients")
+          PATIENTS_STATUS=$(curl -sS -o /tmp/patients.json -w '%{http_code}' "$BASE/patients")
+          echo "homepage=$HOME_STATUS api=$API_STATUS patients=$PATIENTS_STATUS"
+          echo 'API body:'; cat /tmp/api.json; echo
+          echo 'Patients body:'; cat /tmp/patients.json; echo
 
-          echo '2. List patients using assessment route'
-          test "$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/patients")" = '200'
+          test "$HOME_STATUS" = '200'
+          test "$API_STATUS" = '200'
+          test "$PATIENTS_STATUS" = '200'
 
-          echo '3. Validation rejects invalid phone'
           INVALID=$(curl -sS -o /tmp/invalid.json -w '%{http_code}' -X POST "$BASE/patients" -H 'Content-Type: application/json' -d '{"first_name":"Smoke","last_name":"Invalid","date_of_birth":"1995-05-20","sex":"Other","phone_number":"123","address_line_1":"1 Test Street","city":"Austin","state":"TX","zip_code":"78701"}')
           test "$INVALID" = '422'
 
-          echo '4. Create fake patient'
           CREATE=$(curl -sS -X POST "$BASE/patients" -H 'Content-Type: application/json' -d "{\"first_name\":\"Smoke\",\"last_name\":\"Test\",\"date_of_birth\":\"1995-05-20\",\"sex\":\"Other\",\"phone_number\":\"$PHONE\",\"address_line_1\":\"1 Test Street\",\"city\":\"Austin\",\"state\":\"TX\",\"zip_code\":\"78701\"}")
           ID=$(printf '%s' "$CREATE" | python3 -c 'import sys,json; print(json.load(sys.stdin)["data"]["patient_id"])')
           test -n "$ID"
-
-          echo '5. Get patient by id'
           test "$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/patients/$ID")" = '200'
-
-          echo '6. Filter by phone'
           FILTER=$(curl -sS "$BASE/patients?phone_number=$PHONE")
           printf '%s' "$FILTER" | python3 -c 'import sys,json; d=json.load(sys.stdin)["data"]; assert len(d)==1 and d[0]["last_name"]=="Test"'
-
-          echo '7. Partial update'
           UPDATE=$(curl -sS -X PUT "$BASE/patients/$ID" -H 'Content-Type: application/json' -d '{"city":"Dallas"}')
           printf '%s' "$UPDATE" | python3 -c 'import sys,json; assert json.load(sys.stdin)["data"]["city"]=="Dallas"'
-
-          echo '8. Soft delete'
           test "$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE "$BASE/patients/$ID")" = '200'
           test "$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/patients/$ID")" = '404'
-
           echo 'ALL LIVE SMOKE TESTS PASSED'
-
-          # Fake data only. Rerun after route fix.
