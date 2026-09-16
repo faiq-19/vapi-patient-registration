@@ -22,7 +22,7 @@ export default function Home() {
 
   async function refresh() {
     try {
-      const response = await fetch("/api/patients", { cache: "no-store" });
+      const response = await fetch("/patients", { cache: "no-store" });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "API error");
       setPatients(body.data || []);
@@ -38,7 +38,7 @@ export default function Home() {
     event.preventDefault();
     setBusy(true);
     const suffix = String(Date.now()).slice(-7).padStart(7, "0");
-    await fetch("/api/patients", {
+    await fetch("/patients", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -90,7 +90,7 @@ export default function Home() {
       </section>
 
       <section className="card table-card">
-        <div className="section-head"><div><p className="label">Dashboard</p><h2>Registered Patients</h2></div><code>GET /api/patients</code></div>
+        <div className="section-head"><div><p className="label">Dashboard</p><h2>Registered Patients</h2></div><code>GET /patients</code></div>
         <div className="table-wrap">
           <table>
             <thead><tr><th>Name</th><th>DOB</th><th>Phone</th><th>State</th><th>Created</th></tr></thead>
@@ -106,7 +106,7 @@ export default function Home() {
       <section className="card api">
         <p className="label">Reviewer API</p>
         <h2>Endpoints</h2>
-        <div className="endpoints"><code>GET /api/patients</code><code>GET /api/patients/:id</code><code>POST /api/patients</code><code>PUT /api/patients/:id</code><code>DELETE /api/patients/:id</code></div>
+        <div className="endpoints"><code>GET /patients</code><code>GET /patients/:id</code><code>POST /patients</code><code>PUT /patients/:id</code><code>DELETE /patients/:id</code></div>
         <p className="muted small">Filters: <code>?last_name=</code> <code>?date_of_birth=</code> <code>?phone_number=</code>. DELETE is a soft delete.</p>
       </section>
     </main>
