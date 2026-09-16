@@ -1,11 +1,13 @@
 # Vapi setup
 
-Keep the existing Vapi phone number and assistant. Replace the old n8n tool URLs with Vapi **API Request** tools pointing to the live Vercel deployment.
+Keep the existing Vapi phone number, assistant, prompt, model, transcriber, voice, and existing `create_patient` function tool from the original submission.
 
-1. `lookup_patient` — GET `https://vapi-patient-registration.vercel.app/api/patients?phone_number=<phone_number>`
-2. `create_patient` — POST `https://vapi-patient-registration.vercel.app/api/patients` with the collected patient JSON body.
-3. `update_patient` — PUT `https://vapi-patient-registration.vercel.app/api/patients/<patient_id>` with only corrected fields.
+Only change the `create_patient` tool server URL from the old n8n webhook to:
 
-Use the instructions in `system-prompt.md` as the assistant system prompt. Configure tool failure messaging so the assistant tells the caller the save failed instead of pretending it succeeded.
+`https://vapi-patient-registration.vercel.app/patients`
 
-Vapi's API Request tool is intentionally used here because the backend already exposes ordinary REST endpoints; a separate Vapi webhook adapter would add code without adding value for this assessment.
+The tool arguments/JSON schema stay unchanged. The assistant should continue calling `create_patient` only after the caller explicitly confirms all collected information.
+
+The Next.js backend validates the payload, writes the patient to Supabase, and returns a success/error JSON response. If the tool returns an error, the assistant must tell the caller the registration could not be completed and must not claim success.
+
+No additional Vapi tools are required for the core assessment flow.
