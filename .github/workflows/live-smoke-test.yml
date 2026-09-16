@@ -49,3 +49,5 @@ jobs:
           test "$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/patients/$ID")" = '404'
 
           echo 'ALL LIVE SMOKE TESTS PASSED'
+
+          # This workflow intentionally uses fake data only.
